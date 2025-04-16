@@ -93,6 +93,10 @@ IntegerLiteral = 0 | [1-9][0-9]*
   }
 
   "-" { return symbol(ChocoPyTokens.MINUS, yytext()); }
+
+  "if"    { return symbol(ChocoPyTokens.IF); }
+  "else"  { return symbol(ChocoPyTokens.ELSE); }
+  ">"     { return symbol(ChocoPyTokens.GREATER, yytext()); }
 }
 
 <STRING> {
