@@ -143,15 +143,14 @@ action code {:
  * in actions ( {: ... :} ).
  */
 terminal NEWLINE;
-terminal String PLUS;
-terminal String MINUS; 
+terminal String PLUS, MINUS, GREATER, LESS; 
 terminal Integer NUMBER;
+terminal String STRING;
 terminal TRUE, FALSE;
 terminal NONE;
-terminal String STRING;
 terminal LBRACK, RBRACK, COMMA;
-terminal String GREATER;
-terminal IF, ELSE;
+terminal IF, IFX, ELSE;
+terminal String ID;
 
 /* Returned by the lexer for erroneous tokens.  Since it does not appear in
  * the grammar, it indicates a syntax error. */
@@ -166,14 +165,15 @@ non terminal Program           program;
 non terminal List<Declaration> program_head;
 non terminal List<Stmt>        stmt_list, opt_stmt_list;
 non terminal Stmt              stmt, expr_stmt;
-non terminal Expr              expr, binary_expr, unary_expr, if_expr;
+non terminal Expr              expr, if_expr, binary_expr, unary_expr, primary_expr, index_expr;
 non terminal List<Expr>        expr_list, opt_expr_list;
+
 
 /* Precedences (lowest to highest) for resolving what would otherwise be
  * ambiguities in the form of shift/reduce conflicts.. */
 precedence left PLUS;
-precedence left GREATER;
-precedence left IF, ELSE;
+precedence left GREATER, LESS;
+precedence right IFX;
 
 /* The start symbol. */
 start with program;
@@ -216,32 +216,41 @@ stmt ::= expr_stmt:s NEWLINE {: RESULT = s; :}
 expr_stmt ::= expr:e    {: RESULT = new ExprStmt(exleft, exright, e); :}
             ;
 
-expr ::= binary_expr:e  {: RESULT = e; :}
-       | unary_expr:e   {: RESULT = e; :}
-       | if_expr:e      {: RESULT = e; :}
-       | NUMBER:n       {: RESULT = new IntegerLiteral(nxleft, nxright, n); :}
-       | TRUE:t         {: RESULT = new BooleanLiteral(txleft, txright, true); :}
-       | FALSE:f        {: RESULT = new BooleanLiteral(fxleft, fxright, false); :}
-       | NONE:n         {: RESULT = new NoneLiteral(nxleft, nxright); :}
-       | STRING:s       {: RESULT = new StringLiteral(sxleft, sxright, s); :}
-       | LBRACK:l opt_expr_list:e RBRACK:r 
-                        {: RESULT = new ListExpr(lxleft, rxright, e); :}
-       ;
+expr ::= if_expr:e {: RESULT = e; :};
+
+if_expr ::= binary_expr:then IF binary_expr:cond ELSE if_expr:els
+          {: RESULT = new IfExpr(thenxleft, elsxright, cond, then, els); :}
+          %prec IFX
+          | binary_expr:e {: RESULT = e; :};
+
+binary_expr ::= binary_expr:e1 PLUS:op binary_expr:e2
+              {: RESULT = new BinaryExpr(e1xleft, e2xright, e1, op, e2); :}
+              | binary_expr:e1 GREATER:op binary_expr:e2
+              {: RESULT = new BinaryExpr(e1xleft, e2xright, e1, op, e2); :}
+              | binary_expr:e1 LESS:op binary_expr:e2
+              {: RESULT = new BinaryExpr(e1xleft, e2xright, e1, op, e2); :}
+              | unary_expr:e {: RESULT = e; :};
+
+unary_expr ::= MINUS:op unary_expr:e
+             {: RESULT = new UnaryExpr(opxleft, exright, op, e); :}
+             | primary_expr:e {: RESULT = e; :};
+
+primary_expr ::= ID:id {: RESULT = new Identifier(idxleft, idxright, id); :}
+               | NUMBER:n {: RESULT = new IntegerLiteral(nxleft, nxright, n); :}
+               | TRUE:t {: RESULT = new BooleanLiteral(txleft, txright, true); :}
+               | FALSE:f {: RESULT = new BooleanLiteral(fxleft, fxright, false); :}
+               | NONE:n {: RESULT = new NoneLiteral(nxleft, nxright); :}
+               | STRING:s {: RESULT = new StringLiteral(sxleft, sxright, s); :}
+               | LBRACK:l opt_expr_list:e RBRACK:r {: RESULT = new ListExpr(lxleft, rxright, e); :}
+               | primary_expr:e1 LBRACK:e1l binary_expr:e2 RBRACK:e2r
+                 {: RESULT = new IndexExpr(e1xleft, e2rxright, e1, e2); :}
+               ;
 
 expr_list ::= expr:e                      {: RESULT = single(e); :}
             | expr_list:l COMMA expr:e   {: RESULT = combine(l, e); :};
-/* A binary expression, illustrating how to find the left and right
- * source position of a phrase. */
-binary_expr ::= expr:e1 PLUS:op expr:e2
-              {: RESULT = new BinaryExpr(e1xleft, e2xright, e1, op, e2); :}
-              | expr:e1 GREATER:op expr:e2
-              {: RESULT = new BinaryExpr(e1xleft, e2xright, e1, op, e2); :}
-              ; 
 
-unary_expr ::= MINUS:op expr:e
-             {: RESULT = new UnaryExpr(opxleft, exright, op, e); :}
-             ;  
-
-if_expr ::= expr:then IF expr:cond ELSE expr:els
-          {: RESULT = new IfExpr(thenxleft, elsxright, cond, then, els); :}
-          ;
+index_expr ::= primary_expr:e1 LBRACK:e1l expr:e2 RBRACK:e2r
+             {: RESULT = new IndexExpr(e1xleft, e2rxright, e1, e2); :}
+             | index_expr:e1 LBRACK:e1l expr:e2 RBRACK:e2r
+             {: RESULT = new IndexExpr(e1xleft, e2rxright, e1, e2); :}
+             ;

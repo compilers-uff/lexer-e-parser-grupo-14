@@ -58,6 +58,9 @@ import java_cup.runtime.*;
 WhiteSpace = [ \t]
 LineBreak  = \r|\n|\r\n
 IntegerLiteral = 0 | [1-9][0-9]*
+Letter = [a-zA-Z_]
+Digit  = [0-9]
+Identifier = {Letter}({Letter}|{Digit})*
 
 %state STRING
 
@@ -97,6 +100,10 @@ IntegerLiteral = 0 | [1-9][0-9]*
   "if"    { return symbol(ChocoPyTokens.IF); }
   "else"  { return symbol(ChocoPyTokens.ELSE); }
   ">"     { return symbol(ChocoPyTokens.GREATER, yytext()); }
+  "<"   { return symbol(ChocoPyTokens.LESS, yytext()); }
+
+
+  {Identifier}   { return symbol(ChocoPyTokens.ID, yytext()); }
 }
 
 <STRING> {
