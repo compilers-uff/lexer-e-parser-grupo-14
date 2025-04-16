@@ -48,14 +48,18 @@ import java_cup.runtime.*;
             value);
     }
 
+	  private StringBuilder stringBuffer = new StringBuilder();
+    private int stringStartLine;
+    private int stringStartCol;
 %}
 
 /* Macros (regexes used in rules below) */
 
 WhiteSpace = [ \t]
 LineBreak  = \r|\n|\r\n
-
 IntegerLiteral = 0 | [1-9][0-9]*
+
+%state STRING
 
 %%
 
@@ -74,6 +78,40 @@ IntegerLiteral = 0 | [1-9][0-9]*
 
   /* Whitespace. */
   {WhiteSpace}                { /* ignore */ }
+	
+	"True"  { return symbol(ChocoPyTokens.TRUE, true); }
+	"False" { return symbol(ChocoPyTokens.FALSE, false); }
+	"None"  { return symbol(ChocoPyTokens.NONE); }
+	"[" { return symbol(ChocoPyTokens.LBRACK); }
+	"]" { return symbol(ChocoPyTokens.RBRACK); }
+	"," { return symbol(ChocoPyTokens.COMMA); }
+	\" {
+      stringBuffer.setLength(0);
+      stringStartLine = yyline + 1;
+      stringStartCol  = yycolumn + 1;
+      yybegin(STRING);
+  }
+}
+
+<STRING> {
+
+  \\\"                     { stringBuffer.append('"'); }
+  \\\\                     { stringBuffer.append('\\'); }
+  \\n                      { stringBuffer.append('\n'); }
+  \\t                      { stringBuffer.append('\t'); }
+  \" {
+      yybegin(YYINITIAL);
+      return symbolFactory.newSymbol(
+        "STRING",
+        ChocoPyTokens.STRING,
+        new ComplexSymbolFactory.Location(stringStartLine, stringStartCol),
+        new ComplexSymbolFactory.Location(yyline + 1, yycolumn + 1),
+        stringBuffer.toString()
+      );
+  }
+  [^\\\"\n]                { stringBuffer.append(yytext()); }
+  \n                       { return symbol(ChocoPyTokens.UNRECOGNIZED); }
+  .                        { return symbol(ChocoPyTokens.UNRECOGNIZED); }
 }
 
 <<EOF>>                       { return symbol(ChocoPyTokens.EOF); }
