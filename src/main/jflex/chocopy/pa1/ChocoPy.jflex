@@ -91,6 +91,8 @@ IntegerLiteral = 0 | [1-9][0-9]*
       stringStartCol  = yycolumn + 1;
       yybegin(STRING);
   }
+
+  "-" { return symbol(ChocoPyTokens.MINUS, yytext()); }
 }
 
 <STRING> {
