@@ -75,14 +75,7 @@ Identifier = {Letter}({Letter}|{Digit})*
   /* Literals. */
   {IntegerLiteral}            { return symbol(ChocoPyTokens.NUMBER,
                                                  Integer.parseInt(yytext())); }
-
-  /* Operators. */
-  "+"                         { return symbol(ChocoPyTokens.PLUS, yytext()); }
-
-  /* Whitespace. */
-  {WhiteSpace}                { /* ignore */ }
-	
-	"True"  { return symbol(ChocoPyTokens.TRUE, true); }
+  "True"  { return symbol(ChocoPyTokens.TRUE, true); }
 	"False" { return symbol(ChocoPyTokens.FALSE, false); }
 	"None"  { return symbol(ChocoPyTokens.NONE); }
 	"[" { return symbol(ChocoPyTokens.LBRACK); }
@@ -95,14 +88,17 @@ Identifier = {Letter}({Letter}|{Digit})*
       yybegin(STRING);
   }
 
+  /* Operators. */
+  "+"                         { return symbol(ChocoPyTokens.PLUS, yytext()); }
   "-" { return symbol(ChocoPyTokens.MINUS, yytext()); }
-
   "if"    { return symbol(ChocoPyTokens.IF); }
   "else"  { return symbol(ChocoPyTokens.ELSE); }
   ">"     { return symbol(ChocoPyTokens.GREATER, yytext()); }
   "<"   { return symbol(ChocoPyTokens.LESS, yytext()); }
 
-
+  /* Whitespace. */
+  {WhiteSpace}                { /* ignore */ }
+	
   {Identifier}   { return symbol(ChocoPyTokens.ID, yytext()); }
 }
 
