@@ -142,9 +142,22 @@ action code {:
  * semantic value of type <type> for these symbols that may be referenced
  * in actions ( {: ... :} ).
  */
-terminal NEWLINE;
-terminal String PLUS; 
-terminal Integer NUMBER; 
+
+// Operadores
+terminal String PLUS, MINUS, GREATER, LESS, ASSIGN;
+
+// Delimitadores e símbolos de agrupamento
+terminal NEWLINE, LBRACK, RBRACK, COMMA, DOT, COLON;
+
+// Literais e identificadores
+terminal Integer NUMBER;
+terminal String STRING;
+terminal String ID;
+terminal TRUE, FALSE, NONE;
+
+// Palavras-chave
+terminal IF, IFX, ELSE;
+
 /* Returned by the lexer for erroneous tokens.  Since it does not appear in
  * the grammar, it indicates a syntax error. */
 terminal UNRECOGNIZED;   
@@ -154,15 +167,23 @@ terminal UNRECOGNIZED;
  *     non terminal <type> <identifier1>, ..., <identifiern>; 
  * defines the listed nonterminal identifier symbols to have semantic values
  * of type <type>. */
-non terminal Program           program;
-non terminal List<Declaration> program_head;
-non terminal List<Stmt>        stmt_list, opt_stmt_list;
-non terminal Stmt              stmt, expr_stmt;
-non terminal Expr              expr, binary_expr;
+non terminal Program            program;
+non terminal List<Declaration>  program_head;
+non terminal List<Stmt>         stmt_list, opt_stmt_list;
+non terminal Stmt               stmt, expr_stmt, assign_stmt;
+non terminal Expr               expr, cond_expr, unary_expr, primary_expr, lvalue, member_expr;
+non terminal List<Expr>         expr_list, opt_expr_list, assign_chain;
+non terminal Declaration        declaration;
+non terminal VarDef             var_def;
+non terminal TypedVar           typed_var;
+non terminal TypeAnnotation     type;
+
 
 /* Precedences (lowest to highest) for resolving what would otherwise be
  * ambiguities in the form of shift/reduce conflicts.. */
 precedence left PLUS;
+precedence left GREATER, LESS;
+precedence right IFX;
 
 /* The start symbol. */
 start with program;
@@ -177,16 +198,28 @@ program ::= program_head:d opt_stmt_list:s
         ;
 
 /* Initial list of declarations. */
-program_head ::= /* not implemented; currently matches empty string */
-                                     {: RESULT = empty(); :}
-                ;
+program_head ::=                              {: RESULT = empty(); :}
+               | program_head:l declaration:d {: RESULT = combine(l, d); :}
+               ;
+
+declaration ::= var_def:v NEWLINE {: RESULT = v; :};
+
+var_def ::= typed_var:t ASSIGN expr:e {: RESULT = new VarDef(txleft, exright, t, (Literal) e); :}
+            ;
+typed_var ::= ID:id COLON type:t {: RESULT = new TypedVar(idxleft, txright, new Identifier(idxleft, idxright, id), t); :};
+
+type ::= ID:id {: RESULT = new ClassType(idxleft, idxright, id); :};
 
 opt_stmt_list ::=                    {: RESULT = empty(); :}
                 | stmt_list:s        {: RESULT = s; :}
                 ;
 
-stmt_list ::= stmt:s                 {: RESULT = single(s); :}
-            | stmt_list:l stmt:s     {: RESULT = combine(l, s); :}
+opt_expr_list ::=                    {: RESULT = new ArrayList<Expr>(); :}
+                | expr_list:l         {: RESULT = l; :}
+                ;
+
+stmt_list ::= stmt:s                 {: RESULT = s == null ? new ArrayList<>() : single(s); :}
+            | stmt_list:l stmt:s     {: RESULT = s == null ? l : combine(l, s); :}
             | stmt_list:l error      {: RESULT = l; :}
             /* If there is a syntax error in the source, this says to discard
              * symbols from the parsing stack and perform reductions until
@@ -195,20 +228,49 @@ stmt_list ::= stmt:s                 {: RESULT = single(s); :}
              * a syntax error. */
             ;
 
-stmt ::= expr_stmt:s NEWLINE {: RESULT = s; :}
-              ;
+stmt ::= assign_stmt:s NEWLINE {: RESULT = s; :}
+      | expr_stmt:s NEWLINE {: RESULT = s; :}
+      | NEWLINE {: RESULT = null; :}
+      ;
 
-expr_stmt ::= expr:e    {: RESULT = new ExprStmt(exleft, exright, e); :}
-            ;
+assign_stmt ::= assign_chain:ids ASSIGN expr:e {: RESULT = new AssignStmt(getLeft(ids), exright, ids, e); :};
 
-expr ::= binary_expr:e  {: RESULT = e; :}
-       | NUMBER:n       {: RESULT = new IntegerLiteral(nxleft, nxright, n); :}
+assign_chain ::= assign_chain:id ASSIGN lvalue:t {: RESULT = combine(id, t); :}
+               | lvalue:id {: RESULT = single(id); :}
+               ;
+
+lvalue ::= primary_expr:e {: RESULT = e; :}
+         | member_expr:e {: RESULT = e; :} 
+         ;
+
+member_expr ::= primary_expr:e1 DOT ID:id {: RESULT = new MemberExpr(e1xleft, idxright, e1, new Identifier(idxleft, idxright, id)); :};
+
+expr_stmt ::= expr:e {: RESULT = new ExprStmt(exleft, exright, e); :};
+
+expr ::= cond_expr:c {: RESULT = c; :}
+       | cond_expr:e1 IF cond_expr:e2 ELSE expr:e3 {: RESULT = new IfExpr(e1xleft, e3xright, e2, e1, e3); :} %prec IFX
        ;
 
+cond_expr ::= cond_expr:e1 PLUS:op cond_expr:e2 {: RESULT = new BinaryExpr(e1xleft, e2xright, e1, op, e2); :}
+            | cond_expr:e1 GREATER:op cond_expr:e2 {: RESULT = new BinaryExpr(e1xleft, e2xright, e1, op, e2); :}
+            | cond_expr:e1 LESS:op cond_expr:e2 {: RESULT = new BinaryExpr(e1xleft, e2xright, e1, op, e2); :}
+            | unary_expr:e                                        {: RESULT = e; :}
+            ;
 
-/* A binary expression, illustrating how to find the left and right
- * source position of a phrase. */
-binary_expr ::= expr:e1 PLUS:op expr:e2
-                        {: RESULT = new BinaryExpr(e1xleft, e2xright,
-                                                   e1, op, e2); :}
-              ;
+
+unary_expr ::= MINUS:op unary_expr:e {: RESULT = new UnaryExpr(opxleft, exright, op, e); :}
+             | primary_expr:e {: RESULT = e; :}
+             ;
+
+primary_expr ::= ID:id {: RESULT = new Identifier(idxleft, idxright, id); :}
+               | NUMBER:n {: RESULT = new IntegerLiteral(nxleft, nxright, n); :}
+               | TRUE:t {: RESULT = new BooleanLiteral(txleft, txright, true); :}
+               | FALSE:f {: RESULT = new BooleanLiteral(fxleft, fxright, false); :}
+               | NONE:n {: RESULT = new NoneLiteral(nxleft, nxright); :}
+               | STRING:s {: RESULT = new StringLiteral(sxleft, sxright, s); :}
+               | LBRACK:l opt_expr_list:e RBRACK:r {: RESULT = new ListExpr(lxleft, rxright, e); :}
+               | primary_expr:e1 LBRACK:e1l expr:e2 RBRACK:e2r {: RESULT = new IndexExpr(e1xleft, e2rxright, e1, e2); :}
+               ;
+
+expr_list ::= expr:e {: RESULT = single(e); :}
+           | expr_list:l COMMA expr:e {: RESULT = combine(l, e); :};

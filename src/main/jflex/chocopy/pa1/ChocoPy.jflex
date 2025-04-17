@@ -48,32 +48,84 @@ import java_cup.runtime.*;
             value);
     }
 
+	  private StringBuilder stringBuffer = new StringBuilder();
+    private int stringStartLine;
+    private int stringStartCol;
 %}
 
 /* Macros (regexes used in rules below) */
 
 WhiteSpace = [ \t]
 LineBreak  = \r|\n|\r\n
-
 IntegerLiteral = 0 | [1-9][0-9]*
+Letter = [a-zA-Z_]
+Digit  = [0-9]
+Identifier = {Letter}({Letter}|{Digit})*
+
+%state STRING
 
 %%
 
 
 <YYINITIAL> {
 
-  /* Delimiters. */
+  /* === Delimitadores === */
   {LineBreak}                 { return symbol(ChocoPyTokens.NEWLINE); }
+  "["                         { return symbol(ChocoPyTokens.LBRACK); }
+  "]"                         { return symbol(ChocoPyTokens.RBRACK); }
+  ","                         { return symbol(ChocoPyTokens.COMMA); }
+  "."                         { return symbol(ChocoPyTokens.DOT); }
+  ":"                         { return symbol(ChocoPyTokens.COLON); }
 
-  /* Literals. */
-  {IntegerLiteral}            { return symbol(ChocoPyTokens.NUMBER,
-                                                 Integer.parseInt(yytext())); }
+  /* === Literais === */
+  {IntegerLiteral}            { return symbol(ChocoPyTokens.NUMBER, Integer.parseInt(yytext())); }
+  "True"                      { return symbol(ChocoPyTokens.TRUE, true); }
+  "False"                     { return symbol(ChocoPyTokens.FALSE, false); }
+  "None"                      { return symbol(ChocoPyTokens.NONE); }
+  \" {
+      stringBuffer.setLength(0);
+      stringStartLine = yyline + 1;
+      stringStartCol  = yycolumn + 1;
+      yybegin(STRING);
+  }
 
-  /* Operators. */
+  /* === Operadores === */
   "+"                         { return symbol(ChocoPyTokens.PLUS, yytext()); }
+  "-"                         { return symbol(ChocoPyTokens.MINUS, yytext()); }
+  "="                         { return symbol(ChocoPyTokens.ASSIGN, yytext()); }
+  ">"                         { return symbol(ChocoPyTokens.GREATER, yytext()); }
+  "<"                         { return symbol(ChocoPyTokens.LESS, yytext()); }
 
-  /* Whitespace. */
+  /* === Palavras-chave === */
+  "if"                        { return symbol(ChocoPyTokens.IF); }
+  "else"                      { return symbol(ChocoPyTokens.ELSE); }
+
+  /* === Identificadores === */
+  {Identifier}                { return symbol(ChocoPyTokens.ID, yytext()); }
+
+  /* === Espaços em branco === */
   {WhiteSpace}                { /* ignore */ }
+}
+
+<STRING> {
+
+  \\\"                     { stringBuffer.append('"'); }
+  \\\\                     { stringBuffer.append('\\'); }
+  \\n                      { stringBuffer.append('\n'); }
+  \\t                      { stringBuffer.append('\t'); }
+  \" {
+      yybegin(YYINITIAL);
+      return symbolFactory.newSymbol(
+        "STRING",
+        ChocoPyTokens.STRING,
+        new ComplexSymbolFactory.Location(stringStartLine, stringStartCol),
+        new ComplexSymbolFactory.Location(yyline + 1, yycolumn + 1),
+        stringBuffer.toString()
+      );
+  }
+  [^\\\"\n]                { stringBuffer.append(yytext()); }
+  \n                       { return symbol(ChocoPyTokens.UNRECOGNIZED); }
+  .                        { return symbol(ChocoPyTokens.UNRECOGNIZED); }
 }
 
 <<EOF>>                       { return symbol(ChocoPyTokens.EOF); }
