@@ -147,7 +147,7 @@ action code {:
 terminal String PLUS, MINUS, GREATER, LESS, ASSIGN;
 
 // Delimitadores e símbolos de agrupamento
-terminal NEWLINE, LBRACK, RBRACK, COMMA, DOT;
+terminal NEWLINE, LBRACK, RBRACK, COMMA, DOT, COLON;
 
 // Literais e identificadores
 terminal Integer NUMBER;
@@ -171,8 +171,12 @@ non terminal Program            program;
 non terminal List<Declaration>  program_head;
 non terminal List<Stmt>         stmt_list, opt_stmt_list;
 non terminal Stmt               stmt, expr_stmt, assign_stmt;
-non terminal Expr               expr, if_expr, binary_expr, unary_expr, primary_expr, index_expr, lvalue, member_expr, single_target;
+non terminal Expr               expr, cond_expr, unary_expr, primary_expr, lvalue, member_expr;
 non terminal List<Expr>         expr_list, opt_expr_list, assign_chain;
+non terminal Declaration        declaration;
+non terminal VarDef             var_def;
+non terminal TypedVar           typed_var;
+non terminal TypeAnnotation     type;
 
 
 /* Precedences (lowest to highest) for resolving what would otherwise be
@@ -194,16 +198,25 @@ program ::= program_head:d opt_stmt_list:s
         ;
 
 /* Initial list of declarations. */
-program_head ::= /* not implemented; currently matches empty string */
-                                     {: RESULT = empty(); :}
-                ;
+program_head ::=                              {: RESULT = empty(); :}
+               | program_head:l declaration:d {: RESULT = combine(l, d); :}
+               ;
+
+declaration ::= var_def:v NEWLINE {: RESULT = v; :};
+
+var_def ::= typed_var:t ASSIGN expr:e {: RESULT = new VarDef(txleft, exright, t, (Literal) e); :}
+            ;
+typed_var ::= ID:id COLON type:t {: RESULT = new TypedVar(idxleft, txright, new Identifier(idxleft, idxright, id), t); :};
+
+type ::= ID:id {: RESULT = new ClassType(idxleft, idxright, id); :};
 
 opt_stmt_list ::=                    {: RESULT = empty(); :}
                 | stmt_list:s        {: RESULT = s; :}
                 ;
 
 opt_expr_list ::=                    {: RESULT = new ArrayList<Expr>(); :}
-                | expr_list:l         {: RESULT = l; :};
+                | expr_list:l         {: RESULT = l; :}
+                ;
 
 stmt_list ::= stmt:s                 {: RESULT = s == null ? new ArrayList<>() : single(s); :}
             | stmt_list:l stmt:s     {: RESULT = s == null ? l : combine(l, s); :}
@@ -217,38 +230,37 @@ stmt_list ::= stmt:s                 {: RESULT = s == null ? new ArrayList<>() :
 
 stmt ::= assign_stmt:s NEWLINE {: RESULT = s; :}
       | expr_stmt:s NEWLINE {: RESULT = s; :}
-      | NEWLINE {: RESULT = null; :};
+      | NEWLINE {: RESULT = null; :}
+      ;
 
-assign_stmt ::= assign_chain:ids ASSIGN expr:e
-    {: RESULT = new AssignStmt(getLeft(ids), exright, ids, e); :};
+assign_stmt ::= assign_chain:ids ASSIGN expr:e {: RESULT = new AssignStmt(getLeft(ids), exright, ids, e); :};
 
 assign_chain ::= assign_chain:id ASSIGN lvalue:t {: RESULT = combine(id, t); :}
-               | lvalue:id {: RESULT = single(id); :};
-
-single_target ::= ID:id {: RESULT = new Identifier(idxleft, idxright, id); :};
+               | lvalue:id {: RESULT = single(id); :}
+               ;
 
 lvalue ::= primary_expr:e {: RESULT = e; :}
-         | member_expr:e {: RESULT = e; :};
+         | member_expr:e {: RESULT = e; :} 
+         ;
 
-member_expr ::= primary_expr:e1 DOT ID:id
-              {: RESULT = new MemberExpr(e1xleft, idxright, e1, new Identifier(idxleft, idxright, id)); :};
+member_expr ::= primary_expr:e1 DOT ID:id {: RESULT = new MemberExpr(e1xleft, idxright, e1, new Identifier(idxleft, idxright, id)); :};
 
 expr_stmt ::= expr:e {: RESULT = new ExprStmt(exleft, exright, e); :};
 
-expr ::= if_expr:e {: RESULT = e; :};
+expr ::= cond_expr:c {: RESULT = c; :}
+       | cond_expr:e1 IF cond_expr:e2 ELSE expr:e3 {: RESULT = new IfExpr(e1xleft, e3xright, e2, e1, e3); :} %prec IFX
+       ;
 
-if_expr ::= binary_expr:then IF binary_expr:cond ELSE if_expr:els
-         {: RESULT = new IfExpr(thenxleft, elsxright, cond, then, els); :}
-         %prec IFX
-         | binary_expr:e {: RESULT = e; :};
+cond_expr ::= cond_expr:e1 PLUS:op cond_expr:e2 {: RESULT = new BinaryExpr(e1xleft, e2xright, e1, op, e2); :}
+            | cond_expr:e1 GREATER:op cond_expr:e2 {: RESULT = new BinaryExpr(e1xleft, e2xright, e1, op, e2); :}
+            | cond_expr:e1 LESS:op cond_expr:e2 {: RESULT = new BinaryExpr(e1xleft, e2xright, e1, op, e2); :}
+            | unary_expr:e                                        {: RESULT = e; :}
+            ;
 
-binary_expr ::= binary_expr:e1 PLUS:op binary_expr:e2 {: RESULT = new BinaryExpr(e1xleft, e2xright, e1, op, e2); :}
-              | binary_expr:e1 GREATER:op binary_expr:e2 {: RESULT = new BinaryExpr(e1xleft, e2xright, e1, op, e2); :}
-              | binary_expr:e1 LESS:op binary_expr:e2 {: RESULT = new BinaryExpr(e1xleft, e2xright, e1, op, e2); :}
-              | unary_expr:e {: RESULT = e; :};
 
 unary_expr ::= MINUS:op unary_expr:e {: RESULT = new UnaryExpr(opxleft, exright, op, e); :}
-             | primary_expr:e {: RESULT = e; :};
+             | primary_expr:e {: RESULT = e; :}
+             ;
 
 primary_expr ::= ID:id {: RESULT = new Identifier(idxleft, idxright, id); :}
                | NUMBER:n {: RESULT = new IntegerLiteral(nxleft, nxright, n); :}
@@ -257,10 +269,8 @@ primary_expr ::= ID:id {: RESULT = new Identifier(idxleft, idxright, id); :}
                | NONE:n {: RESULT = new NoneLiteral(nxleft, nxright); :}
                | STRING:s {: RESULT = new StringLiteral(sxleft, sxright, s); :}
                | LBRACK:l opt_expr_list:e RBRACK:r {: RESULT = new ListExpr(lxleft, rxright, e); :}
-               | primary_expr:e1 LBRACK:e1l binary_expr:e2 RBRACK:e2r {: RESULT = new IndexExpr(e1xleft, e2rxright, e1, e2); :};
+               | primary_expr:e1 LBRACK:e1l expr:e2 RBRACK:e2r {: RESULT = new IndexExpr(e1xleft, e2rxright, e1, e2); :}
+               ;
 
 expr_list ::= expr:e {: RESULT = single(e); :}
            | expr_list:l COMMA expr:e {: RESULT = combine(l, e); :};
-
-index_expr ::= primary_expr:e1 LBRACK:e1l expr:e2 RBRACK:e2r {: RESULT = new IndexExpr(e1xleft, e2rxright, e1, e2); :}
-             | index_expr:e1 LBRACK:e1l expr:e2 RBRACK:e2r {: RESULT = new IndexExpr(e1xleft, e2rxright, e1, e2); :};

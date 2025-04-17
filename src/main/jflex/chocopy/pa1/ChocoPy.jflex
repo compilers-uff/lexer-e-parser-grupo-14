@@ -75,6 +75,7 @@ Identifier = {Letter}({Letter}|{Digit})*
   "]"                         { return symbol(ChocoPyTokens.RBRACK); }
   ","                         { return symbol(ChocoPyTokens.COMMA); }
   "."                         { return symbol(ChocoPyTokens.DOT); }
+  ":"                         { return symbol(ChocoPyTokens.COLON); }
 
   /* === Literais === */
   {IntegerLiteral}            { return symbol(ChocoPyTokens.NUMBER, Integer.parseInt(yytext())); }
