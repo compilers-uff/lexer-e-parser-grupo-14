@@ -89,12 +89,13 @@ Identifier = {Letter}({Letter}|{Digit})*
   }
 
   /* Operators. */
-  "+"                         { return symbol(ChocoPyTokens.PLUS, yytext()); }
-  "-" { return symbol(ChocoPyTokens.MINUS, yytext()); }
+  "+"     { return symbol(ChocoPyTokens.PLUS, yytext()); }
+  "-"     { return symbol(ChocoPyTokens.MINUS, yytext()); }
+  "="     { return symbol(ChocoPyTokens.ASSIGN, yytext()); }
+  ">"     { return symbol(ChocoPyTokens.GREATER, yytext()); }
+  "<"     { return symbol(ChocoPyTokens.LESS, yytext()); }
   "if"    { return symbol(ChocoPyTokens.IF); }
   "else"  { return symbol(ChocoPyTokens.ELSE); }
-  ">"     { return symbol(ChocoPyTokens.GREATER, yytext()); }
-  "<"   { return symbol(ChocoPyTokens.LESS, yytext()); }
 
   /* Whitespace. */
   {WhiteSpace}                { /* ignore */ }
