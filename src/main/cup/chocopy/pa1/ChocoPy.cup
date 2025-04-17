@@ -142,16 +142,21 @@ action code {:
  * semantic value of type <type> for these symbols that may be referenced
  * in actions ( {: ... :} ).
  */
-terminal NEWLINE;
-terminal String PLUS, MINUS, GREATER, LESS; 
+
+// Operadores
+terminal String PLUS, MINUS, GREATER, LESS, ASSIGN;
+
+// Delimitadores e símbolos de agrupamento
+terminal NEWLINE, LBRACK, RBRACK, COMMA, DOT;
+
+// Literais e identificadores
 terminal Integer NUMBER;
 terminal String STRING;
-terminal TRUE, FALSE;
-terminal NONE;
-terminal LBRACK, RBRACK, COMMA;
-terminal String ASSIGN;
-terminal IF, IFX, ELSE;
 terminal String ID;
+terminal TRUE, FALSE, NONE;
+
+// Palavras-chave
+terminal IF, IFX, ELSE;
 
 /* Returned by the lexer for erroneous tokens.  Since it does not appear in
  * the grammar, it indicates a syntax error. */
@@ -166,10 +171,8 @@ non terminal Program            program;
 non terminal List<Declaration>  program_head;
 non terminal List<Stmt>         stmt_list, opt_stmt_list;
 non terminal Stmt               stmt, expr_stmt, assign_stmt;
-non terminal Expr               expr, if_expr, binary_expr, unary_expr, primary_expr, index_expr;
-non terminal List<Expr>         expr_list, opt_expr_list;
-non terminal List<Identifier>   assign_chain;
-non terminal Identifier         single_target;
+non terminal Expr               expr, if_expr, binary_expr, unary_expr, primary_expr, index_expr, lvalue, member_expr, single_target;
+non terminal List<Expr>         expr_list, opt_expr_list, assign_chain;
 
 
 /* Precedences (lowest to highest) for resolving what would otherwise be
@@ -217,16 +220,18 @@ stmt ::= assign_stmt:s NEWLINE {: RESULT = s; :}
       | NEWLINE {: RESULT = null; :};
 
 assign_stmt ::= assign_chain:ids ASSIGN expr:e
-    {: 
-        List<Expr> targets = new ArrayList<>();
-        for (Identifier id : ids) targets.add(id);
-        RESULT = new AssignStmt(getLeft(ids), exright, targets, e);
-    :};
+    {: RESULT = new AssignStmt(getLeft(ids), exright, ids, e); :};
 
-assign_chain ::= assign_chain:id ASSIGN single_target:t {: RESULT = combine(id, t); :}
-               | single_target:id {: RESULT = single(id); :};
+assign_chain ::= assign_chain:id ASSIGN lvalue:t {: RESULT = combine(id, t); :}
+               | lvalue:id {: RESULT = single(id); :};
 
 single_target ::= ID:id {: RESULT = new Identifier(idxleft, idxright, id); :};
+
+lvalue ::= primary_expr:e {: RESULT = e; :}
+         | member_expr:e {: RESULT = e; :};
+
+member_expr ::= primary_expr:e1 DOT ID:id
+              {: RESULT = new MemberExpr(e1xleft, idxright, e1, new Identifier(idxleft, idxright, id)); :};
 
 expr_stmt ::= expr:e {: RESULT = new ExprStmt(exleft, exright, e); :};
 

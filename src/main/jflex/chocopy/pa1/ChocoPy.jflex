@@ -69,38 +69,41 @@ Identifier = {Letter}({Letter}|{Digit})*
 
 <YYINITIAL> {
 
-  /* Delimiters. */
+  /* === Delimitadores === */
   {LineBreak}                 { return symbol(ChocoPyTokens.NEWLINE); }
+  "["                         { return symbol(ChocoPyTokens.LBRACK); }
+  "]"                         { return symbol(ChocoPyTokens.RBRACK); }
+  ","                         { return symbol(ChocoPyTokens.COMMA); }
+  "."                         { return symbol(ChocoPyTokens.DOT); }
 
-  /* Literals. */
-  {IntegerLiteral}            { return symbol(ChocoPyTokens.NUMBER,
-                                                 Integer.parseInt(yytext())); }
-  "True"  { return symbol(ChocoPyTokens.TRUE, true); }
-	"False" { return symbol(ChocoPyTokens.FALSE, false); }
-	"None"  { return symbol(ChocoPyTokens.NONE); }
-	"[" { return symbol(ChocoPyTokens.LBRACK); }
-	"]" { return symbol(ChocoPyTokens.RBRACK); }
-	"," { return symbol(ChocoPyTokens.COMMA); }
-	\" {
+  /* === Literais === */
+  {IntegerLiteral}            { return symbol(ChocoPyTokens.NUMBER, Integer.parseInt(yytext())); }
+  "True"                      { return symbol(ChocoPyTokens.TRUE, true); }
+  "False"                     { return symbol(ChocoPyTokens.FALSE, false); }
+  "None"                      { return symbol(ChocoPyTokens.NONE); }
+  \" {
       stringBuffer.setLength(0);
       stringStartLine = yyline + 1;
       stringStartCol  = yycolumn + 1;
       yybegin(STRING);
   }
 
-  /* Operators. */
-  "+"     { return symbol(ChocoPyTokens.PLUS, yytext()); }
-  "-"     { return symbol(ChocoPyTokens.MINUS, yytext()); }
-  "="     { return symbol(ChocoPyTokens.ASSIGN, yytext()); }
-  ">"     { return symbol(ChocoPyTokens.GREATER, yytext()); }
-  "<"     { return symbol(ChocoPyTokens.LESS, yytext()); }
-  "if"    { return symbol(ChocoPyTokens.IF); }
-  "else"  { return symbol(ChocoPyTokens.ELSE); }
+  /* === Operadores === */
+  "+"                         { return symbol(ChocoPyTokens.PLUS, yytext()); }
+  "-"                         { return symbol(ChocoPyTokens.MINUS, yytext()); }
+  "="                         { return symbol(ChocoPyTokens.ASSIGN, yytext()); }
+  ">"                         { return symbol(ChocoPyTokens.GREATER, yytext()); }
+  "<"                         { return symbol(ChocoPyTokens.LESS, yytext()); }
 
-  /* Whitespace. */
+  /* === Palavras-chave === */
+  "if"                        { return symbol(ChocoPyTokens.IF); }
+  "else"                      { return symbol(ChocoPyTokens.ELSE); }
+
+  /* === Identificadores === */
+  {Identifier}                { return symbol(ChocoPyTokens.ID, yytext()); }
+
+  /* === Espaços em branco === */
   {WhiteSpace}                { /* ignore */ }
-	
-  {Identifier}   { return symbol(ChocoPyTokens.ID, yytext()); }
 }
 
 <STRING> {
